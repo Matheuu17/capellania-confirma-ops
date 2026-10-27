@@ -26,12 +26,12 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://capellania-confirma-ops.vercel.app"),
   title: {
-    default: "Capellanía Ops",
-    template: "%s | Capellanía Ops",
+    default: "Capellanía!",
+    template: "%s | Capellanía!",
   },
   description:
     "Sistema de supervisión logística en tiempo real y listas de verificación para jornadas pastorales.",
-  applicationName: "Capellanía Ops",
+  applicationName: "Capellanía!",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.ico",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Capellanía Ops",
+    title: "Capellanía!",
   },
   openGraph: {
     title: "Capellanía!",
