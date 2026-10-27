@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📦 Capellanía Ops
 
-## Getting Started
+> Progressive Web App (PWA) móvil y en tiempo real para la gestión logística, verificación de inventario y supervisión operativa de jornadas pastorales.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 📋 Descripción del Proyecto
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Capellanía Ops** resuelve la fricción operativa durante la preparación de jornadas y eventos pastorales. Diseñada bajo un enfoque *mobile-first*, la aplicación coordina el empaque y traslado de materiales divididos en cajas especializadas (**Interna**, **Externa** y **Ágape**), garantizando trazabilidad total desde el inicio de la preparación hasta el cierre del evento.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+La plataforma ofrece una experiencia diferenciada según el rol del usuario:
+- **Coordinadores:** Supervisión general, asignación de cajas por miembro, configuración de datos de la jornada y auditoría visual en tiempo real vía WebSockets sin recargar la página.
+- **Miembros del Equipo:** Vista enfocada únicamente en la(s) caja(s) asignada(s), listas de verificación interactivas (con obligatorios premarcados) y capacidad de registrar materiales imprevistos o incidencias en vivo.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## ✨ Características Principales
 
-To learn more about Next.js, take a look at the following resources:
+- **⚡ Supervisión en Tiempo Real:** Canales reactivos con Supabase Realtime que notifican al coordinador sobre cambios de estado, materiales empacados o ítems adicionales agregados al instante.
+- **👥 Roles y Permisos (RBAC):** Separación estricta de responsabilidades entre el rol `coordinador` y `miembro`.
+- **🎯 Asignación Dirigida de Tareas:** Los miembros visualizan de forma exclusiva las cajas que les fueron designadas, evitando distracciones y errores en el empaque.
+- **📦 Checklists Inteligentes:**
+  - Carga automática de materiales base según el catálogo maestro.
+  - Premarcado por defecto de materiales obligatorios (`es_obligatorio = true`).
+  - Posibilidad de incorporar materiales no previstos (*ítems extra*) para una jornada específica sin alterar el catálogo general.
+- **📱 PWA Instalable:** Configuración de `manifest.json` y meta-tags para instalación nativa en Android (Chrome) e iOS (Safari), permitiendo ejecución a pantalla completa.
+- **📝 Bitácora de Incidencias:** Registro colaborativo de observaciones, faltantes y reportes de cierre de jornada.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Stack Tecnológico
 
-## Deploy on Vercel
+| Capa | Tecnología |
+| :--- | :--- |
+| **Framework** | [Next.js](https://nextjs.org/) (App Router, Server Actions, Server Components) |
+| **Lenguaje** | [TypeScript](https://www.typescriptlang.org/) |
+| **Estilos** | [Tailwind CSS v4](https://tailwindcss.com/) |
+| **Backend & Base de Datos** | [Supabase](https://supabase.com/) (PostgreSQL, Auth, Row Level Security, Realtime) |
+| **Iconografía** | [Lucide React](https://lucide.dev/) |
+| **Despliegue** | [Vercel](https://vercel.com/) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎨 Identidad Visual
+
+| Elemento | Token / Valor | Muestra |
+| :--- | :--- | :--- |
+| **Fondo Principal** | `#F4F3EF` | ![#F4F3EF](https://via.placeholder.com/15/F4F3EF/000000?text=+) |
+| **Texto Principal** | `#211B20` | ![#211B20](https://via.placeholder.com/15/211B20/000000?text=+) |
+| **Verde Institucional** | `#07833F` | ![#07833F](https://via.placeholder.com/15/07833F/000000?text=+) |
+| **Dorado / Acento** | `#E0B84F` | ![#E0B84F](https://via.placeholder.com/15/E0B84F/000000?text=+) |
+
+---
+
+## 🗄️ Modelo de Datos (Esquema Principal)
+
+- **`perfiles`**: Información del usuario vinculada a `auth.users` (`id`, `nombre`, `rol: 'coordinador' | 'miembro'`).
+- **`jornadas`**: Eventos programados (`id`, `fecha`, `ponente`, `din
