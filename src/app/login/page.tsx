@@ -1,10 +1,6 @@
 import { login, signup } from './actions';
 import { ShieldCheck, Package } from 'lucide-react';
-import { redirect } from 'next/navigation';
 
-export default function Home() {
-  redirect('/login');
-}
 
 interface Props {
   searchParams: Promise<{ error?: string }>;
