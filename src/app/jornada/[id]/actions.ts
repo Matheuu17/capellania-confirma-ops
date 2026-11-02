@@ -1,7 +1,85 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+
+/* ==========================================================================
+   1. GESTIÓN OPERATIVA DE LA JORNADA
+   ========================================================================== */
+
+export async function actualizarDatosJornada(formData: FormData) {
+  const supabase = await createClient();
+  const jornadaId = formData.get('jornadaId') as string;
+  const fecha = formData.get('fecha') as string;
+  const ponente = (formData.get('ponente') as string)?.trim();
+  const dinamica = (formData.get('dinamica') as string)?.trim() || null;
+
+  if (!jornadaId || !fecha || !ponente) return;
+
+  await supabase
+    .from('jornadas')
+    .update({
+      fecha,
+      ponente,
+      dinamica_apertura: dinamica,
+    })
+    .eq('id', jornadaId);
+
+  revalidatePath(`/jornada/${jornadaId}`);
+}
+
+export async function cambiarEstadoJornada(
+  jornadaId: string,
+  nuevoEstado: 'planificacion' | 'en_curso' | 'finalizada'
+) {
+  const supabase = await createClient();
+
+  if (!jornadaId) return;
+
+  await supabase
+    .from('jornadas')
+    .update({ estado: nuevoEstado })
+    .eq('id', jornadaId);
+
+  revalidatePath(`/jornada/${jornadaId}`);
+}
+
+export async function eliminarJornada(formData: FormData) {
+  const supabase = await createClient();
+  const id = formData.get('jornadaId') as string;
+
+  if (!id) return;
+
+  await supabase.from('jornadas').delete().eq('id', id);
+
+  revalidatePath('/dashboard');
+  redirect('/dashboard');
+}
+
+/* ==========================================================================
+   2. GESTIÓN DE TAREAS Y CAJAS DE MATERIALES
+   ========================================================================== */
+
+export async function cambiarEstadoTarea(
+  tareaId: string,
+  nuevoEstado: 'pendiente' | 'en_progreso' | 'completado',
+  jornadaId: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  await supabase
+    .from('tareas_jornada')
+    .update({
+      estado: nuevoEstado,
+      usuario_id: user?.id,
+      actualizado_en: new Date().toISOString(),
+    })
+    .eq('id', tareaId);
+
+  revalidatePath(`/jornada/${jornadaId}`);
+}
 
 export async function toggleMaterial(
   tareaId: string,
@@ -32,79 +110,6 @@ export async function toggleMaterial(
       actualizado_en: new Date().toISOString(),
     })
     .eq('id', tareaId);
-
-  revalidatePath(`/jornada/${jornadaId}`);
-}
-
-export async function cambiarEstadoTarea(
-  tareaId: string,
-  nuevoEstado: 'pendiente' | 'en_progreso' | 'completado',
-  jornadaId: string
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  await supabase
-    .from('tareas_jornada')
-    .update({
-      estado: nuevoEstado,
-      usuario_id: user?.id,
-      actualizado_en: new Date().toISOString(),
-    })
-    .eq('id', tareaId);
-
-  revalidatePath(`/jornada/${jornadaId}`);
-}
-
-export async function agregarComentarioCierre(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) return;
-
-  const jornadaId = formData.get('jornadaId') as string;
-  const comentario = formData.get('comentario') as string;
-
-  if (!comentario.trim()) return;
-
-  await supabase.from('comentarios_cierre').insert({
-    jornada_id: jornadaId,
-    usuario_id: user.id,
-    comentario: comentario.trim(),
-  });
-
-  revalidatePath(`/jornada/${jornadaId}`);
-}
-
-export async function actualizarDatosJornada(formData: FormData) {
-  const supabase = await createClient();
-  const jornadaId = formData.get('jornadaId') as string;
-  const fecha = formData.get('fecha') as string;
-  const ponente = formData.get('ponente') as string;
-  const dinamica = formData.get('dinamica') as string;
-
-  await supabase
-    .from('jornadas')
-    .update({
-      fecha,
-      ponente,
-      dinamica_apertura: dinamica,
-    })
-    .eq('id', jornadaId);
-
-  revalidatePath(`/jornada/${jornadaId}`);
-}
-
-export async function cambiarEstadoJornada(
-  jornadaId: string,
-  nuevoEstado: 'planificacion' | 'en_curso' | 'finalizada'
-) {
-  const supabase = await createClient();
-
-  await supabase
-    .from('jornadas')
-    .update({ estado: nuevoEstado })
-    .eq('id', jornadaId);
 
   revalidatePath(`/jornada/${jornadaId}`);
 }
@@ -158,4 +163,51 @@ export async function asignarResponsableCaja(
     .eq('id', tareaId);
 
   revalidatePath(`/jornada/${jornadaId}`);
+}
+
+/* ==========================================================================
+   3. BITÁCORA DE INCIDENCIAS
+   ========================================================================== */
+
+export async function agregarComentarioCierre(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const jornadaId = formData.get('jornadaId') as string;
+  const comentario = (formData.get('comentario') as string)?.trim();
+
+  if (!comentario) return;
+
+  await supabase.from('comentarios_cierre').insert({
+    jornada_id: jornadaId,
+    usuario_id: user.id,
+    comentario,
+  });
+
+  revalidatePath(`/jornada/${jornadaId}`);
+}
+
+/* ==========================================================================
+   4. PERFIL DE USUARIO
+   ========================================================================== */
+
+export async function actualizarPerfil(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const nombre = (formData.get('nombre') as string)?.trim();
+  if (!nombre || nombre.length < 2) return;
+
+  await supabase
+    .from('perfiles')
+    .update({ nombre })
+    .eq('id', user.id);
+
+  revalidatePath('/dashboard/perfil');
+  revalidatePath('/dashboard');
+  revalidatePath('/dashboard', 'layout');
 }
