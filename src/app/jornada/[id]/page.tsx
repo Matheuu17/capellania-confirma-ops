@@ -20,6 +20,7 @@ import {
   Users,
   CheckCircle2,
   ClockAlert,
+  AlertTriangle,
   XCircle,
   Trash2,
 } from 'lucide-react';
@@ -73,7 +74,11 @@ export default async function JornadaDetailPage({ params }: Props) {
     (asistenciasRaw || []).map((a) => [a.usuario_id, a])
   );
 
-  // 4. Mapear estado de asistencia de cada miembro con la regla de 2:15 PM
+  // 4. Mapear estado de asistencia con las 3 reglas:
+  //    - Hasta 2:15 PM (<= 855 min): A Tiempo (P)
+  //    - De 2:16 PM a 2:44 PM (< 885 min): Tardanza (T)
+  //    - Desde 2:45 PM en adelante: Falta (F)
+  //    - Sin registro: Sin Marcar
   const reporteMiembros = miembros.map((m) => {
     const reg = mapaAsistencias.get(m.id);
     if (!reg) {
@@ -88,18 +93,24 @@ export default async function JornadaDetailPage({ params }: Props) {
     }
 
     const fechaRegistro = new Date(reg.registrado_en);
-    // Convertir a hora de Lima (UTC-5)
     const horas = fechaRegistro.getHours();
     const minutos = fechaRegistro.getMinutes();
-    
-    // Regla: 2:15 PM en formato 24h es 14:15
-    const esTarde = horas > 14 || (horas === 14 && minutos >= 15);
+    const minutosTotales = horas * 60 + minutos;
+
+    let estadoCalculado: 'a_tiempo' | 'tardanza' | 'falta' = 'a_tiempo';
+    if (minutosTotales <= 855) {
+      estadoCalculado = 'a_tiempo';
+    } else if (minutosTotales < 885) {
+      estadoCalculado = 'tardanza';
+    } else {
+      estadoCalculado = 'falta';
+    }
 
     return {
       id: m.id,
       nombre: m.nombre,
       rol: m.rol,
-      estado: esTarde ? ('tardanza' as const) : ('a_tiempo' as const),
+      estado: estadoCalculado,
       hora: fechaRegistro.toLocaleTimeString('es-PE', {
         hour: '2-digit',
         minute: '2-digit',
@@ -326,12 +337,12 @@ export default async function JornadaDetailPage({ params }: Props) {
                   Control de Asistencia del Equipo
                 </h2>
                 <span className="text-[10px] text-slate-400 font-medium">
-                  (Límite de puntualidad: 2:15 PM)
+                  (P ≤ 2:15 PM | T &lt; 2:45 PM | F ≥ 2:45 PM)
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#07833F]/10 text-[#07833F] border border-[#07833F]/20">
-                  {reporteMiembros.filter((m) => m.estado !== 'ausente').length}/{reporteMiembros.length} Presentes
+                  {reporteMiembros.filter((m) => m.estado !== 'ausente' && m.estado !== 'falta').length}/{reporteMiembros.length} Presentes
                 </span>
               </div>
             </div>
@@ -362,16 +373,21 @@ export default async function JornadaDetailPage({ params }: Props) {
                       <td className="py-3 px-4">
                         {m.estado === 'a_tiempo' && (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-[#07833F]/10 text-[#07833F] border border-[#07833F]/20">
-                            <CheckCircle2 className="w-3 h-3" /> A Tiempo
+                            <CheckCircle2 className="w-3 h-3" /> A Tiempo (P)
                           </span>
                         )}
                         {m.estado === 'tardanza' && (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-[#E0B84F]/15 text-[#9a761e] border border-[#E0B84F]/30">
-                            <ClockAlert className="w-3 h-3" /> Tardanza
+                            <ClockAlert className="w-3 h-3" /> Tardanza (T)
+                          </span>
+                        )}
+                        {m.estado === 'falta' && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300">
+                            <AlertTriangle className="w-3 h-3" /> Falta (F)
                           </span>
                         )}
                         {m.estado === 'ausente' && (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-600 border border-rose-200/70">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
                             <XCircle className="w-3 h-3" /> Sin Marcar
                           </span>
                         )}
