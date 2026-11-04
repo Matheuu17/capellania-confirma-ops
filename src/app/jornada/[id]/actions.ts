@@ -150,7 +150,7 @@ export async function agregarMaterialExtra(
   revalidatePath(`/jornada/${jornadaId}`);
 }
 
-export async function toggleResponsableCaja(
+export async function asignarResponsableCaja(
   tareaId: string,
   usuarioId: string,
   jornadaId: string

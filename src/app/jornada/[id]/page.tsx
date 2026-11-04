@@ -120,7 +120,6 @@ export default async function JornadaDetailPage({ params }: Props) {
   });
 
   // 5. Tareas y materiales
-    // En src/app/jornada/[id]/page.tsx (Punto 5):
   const { data: todasLasTareas } = await supabase
     .from('tareas_jornada')
     .select('*')
