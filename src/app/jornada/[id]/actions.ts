@@ -150,16 +150,29 @@ export async function agregarMaterialExtra(
   revalidatePath(`/jornada/${jornadaId}`);
 }
 
-export async function asignarResponsableCaja(
+export async function toggleResponsableCaja(
   tareaId: string,
-  usuarioId: string | null,
+  usuarioId: string,
   jornadaId: string
 ) {
   const supabase = await createClient();
 
+  const { data: tarea } = await supabase
+    .from('tareas_jornada')
+    .select('asignados_a')
+    .eq('id', tareaId)
+    .single();
+
+  if (!tarea) return;
+
+  const listaActual: string[] = tarea.asignados_a || [];
+  const nuevaLista = listaActual.includes(usuarioId)
+    ? listaActual.filter((id) => id !== usuarioId)
+    : [...listaActual, usuarioId];
+
   await supabase
     .from('tareas_jornada')
-    .update({ asignado_a: usuarioId || null })
+    .update({ asignados_a: nuevaLista })
     .eq('id', tareaId);
 
   revalidatePath(`/jornada/${jornadaId}`);

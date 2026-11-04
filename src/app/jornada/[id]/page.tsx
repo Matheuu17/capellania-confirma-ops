@@ -120,6 +120,7 @@ export default async function JornadaDetailPage({ params }: Props) {
   });
 
   // 5. Tareas y materiales
+    // En src/app/jornada/[id]/page.tsx (Punto 5):
   const { data: todasLasTareas } = await supabase
     .from('tareas_jornada')
     .select('*')
@@ -127,8 +128,10 @@ export default async function JornadaDetailPage({ params }: Props) {
 
   const tareasVisibles = esCoordinador
     ? todasLasTareas || []
-    : (todasLasTareas || []).filter((t) => t.asignado_a === user.id);
-
+    : (todasLasTareas || []).filter((t) => {
+        const asignados: string[] = t.asignados_a || (t.asignado_a ? [t.asignado_a] : []);
+        return asignados.includes(user.id);
+      });
   const { data: materiales } = await supabase
     .from('catalogo_materiales')
     .select('*')
