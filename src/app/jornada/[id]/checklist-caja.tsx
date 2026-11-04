@@ -320,7 +320,7 @@ export default function ChecklistCaja({
               disabled={estado !== 'en_progreso' && !esCoordinador}
               onClick={() => handleToggle(item.nombre)}
               className={`w-full flex items-center justify-between px-5 py-3 text-left transition-colors cursor-pointer group focus-visible:outline-none focus-visible:bg-slate-100 disabled:opacity-70 disabled:cursor-not-allowed ${
-                marcado ? 'bg-slate-50/50' : 'hover:bg-slate-50/80'
+                marcado ? 'bg-[#07833F]/[0.03] hover:bg-[#07833F]/[0.06]' : 'bg-white hover:bg-slate-50/80'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -336,20 +336,28 @@ export default function ChecklistCaja({
                 </div>
                 <span
                   className={`text-xs min-h-[24px] flex items-center transition-colors ${
-                    marcado ? 'text-slate-400 line-through font-normal' : 'text-[#211B20] font-medium'
+                    marcado ? 'text-slate-800 font-semibold' : 'text-slate-600 font-normal'
                   }`}
                 >
                   {item.nombre}
                 </span>
               </div>
-              {item.es_obligatorio && (
-                <span
-                  aria-label="Requerido"
-                  className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60"
-                >
-                  Req
-                </span>
-              )}
+
+              <div className="flex items-center gap-2">
+                {marcado && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#07833F] bg-[#07833F]/10 px-1.5 py-0.5 rounded border border-[#07833F]/20">
+                    Listo
+                  </span>
+                )}
+                {item.es_obligatorio && (
+                  <span
+                    aria-label="Requerido"
+                    className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/60"
+                  >
+                    Req
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -364,7 +372,9 @@ export default function ChecklistCaja({
               aria-checked={marcado}
               disabled={estado !== 'en_progreso' && !esCoordinador}
               onClick={() => handleToggle(nombreExtra)}
-              className="w-full flex items-center justify-between px-5 py-3 text-left bg-slate-50/60 hover:bg-slate-100/60 focus-visible:outline-none focus-visible:bg-slate-100 disabled:opacity-70 disabled:cursor-not-allowed transition-colors group cursor-pointer"
+              className={`w-full flex items-center justify-between px-5 py-3 text-left transition-colors cursor-pointer group focus-visible:outline-none focus-visible:bg-slate-100 disabled:opacity-70 disabled:cursor-not-allowed ${
+                marcado ? 'bg-[#07833F]/[0.03] hover:bg-[#07833F]/[0.06]' : 'bg-slate-50/40 hover:bg-slate-100/60'
+              }`}
             >
               <div className="flex items-center gap-3">
                 <div
@@ -379,16 +389,24 @@ export default function ChecklistCaja({
                 </div>
                 <span
                   className={`text-xs min-h-[24px] flex items-center transition-colors ${
-                    marcado ? 'text-slate-400 line-through' : 'text-slate-700 font-medium'
+                    marcado ? 'text-slate-800 font-semibold' : 'text-slate-600 font-normal'
                   }`}
                 >
                   {nombreExtra}
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-600 border border-slate-300/50">
-                <Sparkles className="w-2.5 h-2.5 text-slate-400" aria-hidden="true" />
-                Extra
-              </span>
+
+              <div className="flex items-center gap-2">
+                {marcado && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#07833F] bg-[#07833F]/10 px-1.5 py-0.5 rounded border border-[#07833F]/20">
+                    Listo
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-600 border border-slate-300/50">
+                  <Sparkles className="w-2.5 h-2.5 text-slate-400" aria-hidden="true" />
+                  Extra
+                </span>
+              </div>
             </button>
           );
         })}
