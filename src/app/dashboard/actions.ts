@@ -21,70 +21,54 @@ export async function signOut() {
 
 export async function crearJornada(formData: FormData) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
-  }
+  // Validar rol coordinador
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
 
   const fecha = formData.get('fecha') as string;
   const ponente = (formData.get('ponente') as string)?.trim();
   const dinamica = (formData.get('dinamica') as string)?.trim() || null;
+  
+  // Leer las cajas seleccionadas (si no marcó ninguna, asignamos 'interna' por defecto)
+  const cajasSeleccionadas = formData.getAll('cajas') as string[];
+  const cajasACrear = cajasSeleccionadas.length > 0 ? cajasSeleccionadas : ['interna'];
 
-  if (!fecha || !ponente) {
-    throw new Error('Fecha y ponente son campos requeridos.');
-  }
-
-  // 1. Crear la jornada operativa
-  const { data: jornada, error: errorJornada } = await supabase
+  // 1. Insertar la jornada
+  const { data: jornada, error: errJornada } = await supabase
     .from('jornadas')
     .insert({
       fecha,
       ponente,
       dinamica_apertura: dinamica,
       estado: 'planificacion',
-      creado_por: user.id,
     })
     .select('id')
     .single();
 
-  if (errorJornada || !jornada) {
-    throw new Error('Error al registrar la jornada en la base de datos.');
+  if (errJornada || !jornada) {
+    throw new Error(errJornada?.message || 'Error al crear jornada');
   }
 
-  // 2. Obtener catálogo para asociar materiales obligatorios pre-marcados
-  const { data: catalogo } = await supabase
-    .from('catalogo_materiales')
-    .select('nombre, tipo_caja, es_obligatorio');
+  // 2. Insertar ÚNICAMENTE las tareas de las cajas elegidas
+  const tareasInsert = cajasACrear.map((tipo) => ({
+    jornada_id: jornada.id,
+    tipo_caja: tipo,
+    estado: 'pendiente',
+    materiales_verificados: [],
+    asignados_a: [],
+  }));
 
-  const cajas: Array<'interna' | 'externa' | 'agape'> = ['interna', 'externa', 'agape'];
-
-  const tareasParaInsertar = cajas.map((tipo) => {
-    const obligatorios = catalogo
-      ? catalogo
-          .filter((m) => m.tipo_caja === tipo && m.es_obligatorio)
-          .map((m) => m.nombre)
-      : [];
-
-    return {
-      jornada_id: jornada.id,
-      tipo_caja: tipo,
-      estado: 'pendiente' as const,
-      materiales_verificados: obligatorios,
-    };
-  });
-
-  const { error: errorTareas } = await supabase
+  const { error: errTareas } = await supabase
     .from('tareas_jornada')
-    .insert(tareasParaInsertar);
+    .insert(tareasInsert);
 
-  if (errorTareas) {
-    throw new Error('Error al inicializar las cajas de la jornada.');
+  if (errTareas) {
+    console.error('Error creando cajas:', errTareas.message);
   }
 
   revalidatePath('/dashboard');
+  redirect(`/jornada/${jornada.id}`);
 }
 
 /* ==========================================================================

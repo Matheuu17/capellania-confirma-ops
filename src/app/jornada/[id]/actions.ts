@@ -51,8 +51,32 @@ export async function eliminarJornada(formData: FormData) {
 
   if (!id) return;
 
-  await supabase.from('jornadas').delete().eq('id', id);
+  // 1. Validar autenticación y rol de coordinador
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
 
+  const { data: perfil } = await supabase
+    .from('perfiles')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (perfil?.rol !== 'coordinador') {
+    throw new Error('Solo los coordinadores pueden cancelar jornadas');
+  }
+
+  // 2. Soft Delete: cambiar estado a 'cancelada'
+  const { error } = await supabase
+    .from('jornadas')
+    .update({ estado: 'cancelada' })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error al cancelar jornada:', error.message);
+    throw new Error(`Error en Supabase: ${error.message}`);
+  }
+
+  // 3. Revalidar y redirigir
   revalidatePath('/dashboard');
   redirect('/dashboard');
 }
@@ -223,4 +247,76 @@ export async function actualizarPerfil(formData: FormData) {
   revalidatePath('/dashboard/perfil');
   revalidatePath('/dashboard');
   revalidatePath('/dashboard', 'layout');
+}
+
+// 1. Quitar una caja de la jornada
+export async function eliminarCajaDeJornada(tareaId: string, jornadaId: string) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
+
+  const { data: perfil } = await supabase
+    .from('perfiles')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (perfil?.rol !== 'coordinador') {
+    throw new Error('Solo los coordinadores pueden modificar cajas');
+  }
+
+  const { error } = await supabase
+    .from('tareas_jornada')
+    .delete()
+    .eq('id', tareaId)
+    .eq('jornada_id', jornadaId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/jornada/${jornadaId}`);
+  revalidatePath('/dashboard');
+}
+
+// 2. Agregar una caja faltante a la jornada
+export async function agregarCajaAJornada(tipoCaja: string, jornadaId: string) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
+
+  const { data: perfil } = await supabase
+    .from('perfiles')
+    .select('rol')
+    .eq('id', user.id)
+    .single();
+
+  if (perfil?.rol !== 'coordinador') {
+    throw new Error('Solo los coordinadores pueden modificar cajas');
+  }
+
+  // Verificar que la caja no exista ya en la jornada
+  const { data: existente } = await supabase
+    .from('tareas_jornada')
+    .select('id')
+    .eq('jornada_id', jornadaId)
+    .eq('tipo_caja', tipoCaja)
+    .maybeSingle();
+
+  if (existente) return; // Ya existe
+
+  const { error } = await supabase
+    .from('tareas_jornada')
+    .insert({
+      jornada_id: jornadaId,
+      tipo_caja: tipoCaja,
+      estado: 'pendiente',
+      materiales_verificados: [],
+      asignados_a: [],
+    });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/jornada/${jornadaId}`);
+  revalidatePath('/dashboard');
 }

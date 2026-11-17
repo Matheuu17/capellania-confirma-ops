@@ -20,6 +20,8 @@ export default async function DashboardLayout({
     .eq('id', user.id)
     .single();
 
+  const esCoordinador = perfil?.rol === 'coordinador';
+
   return (
     <div className="flex h-screen bg-[#F4F3EF] overflow-hidden selection:bg-[#07833F]/15 selection:text-[#07833F]">
       
@@ -27,7 +29,7 @@ export default async function DashboardLayout({
       <aside className="hidden sm:flex w-64 bg-white border-r border-slate-200/80 flex-col z-20">
         {/* Branding ERP */}
         <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-100">
-          <div className="w-8 h-8 bg-[#211B20] text-white rounded-lg flex items-center justify-center shadow-xs">
+          <div className="w-8 h-8 bg-[#07833F] text-white rounded-lg flex items-center justify-center shadow-xs">
             <Package className="w-4 h-4" aria-hidden="true" />
           </div>
           <span className="text-sm font-bold tracking-tight text-[#211B20]">
@@ -37,7 +39,7 @@ export default async function DashboardLayout({
 
         {/* Navegación Lateral */}
         <nav className="flex-1 px-4 py-6 space-y-1.5" aria-label="Navegación principal">
-          <NavLinks />
+          <NavLinks esCoordinador={esCoordinador} />
         </nav>
 
         {/* Perfil y Salida (Abajo) */}
@@ -58,7 +60,7 @@ export default async function DashboardLayout({
           <form action={signOut}>
             <button
               type="submit"
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
             >
               <LogOut className="w-4 h-4" aria-hidden="true" />
               <span>Cerrar Sesión</span>
@@ -82,21 +84,21 @@ export default async function DashboardLayout({
             <button
               type="submit"
               aria-label="Cerrar Sesión"
-              className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 rounded-lg border border-slate-200/80"
+              className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 rounded-lg border border-slate-200/80 cursor-pointer"
             >
               <LogOut className="w-4 h-4" aria-hidden="true" />
             </button>
           </form>
         </header>
 
-        {/* Contenido Inyectado (Jornadas o Asistencia) */}
+        {/* Contenido Inyectado */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden relative pb-16 sm:pb-0">
           {children}
         </main>
 
         {/* 📱 Bottom Navigation Mobile (PWA) */}
         <nav className="sm:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/90 backdrop-blur-md border-t border-slate-200/80 z-30 pb-safe flex justify-around items-center px-2 shadow-[0_-4px_24px_rgba(0,0,0,0.04)]">
-          <NavLinks />
+          <NavLinks esCoordinador={esCoordinador} />
         </nav>
       </div>
     </div>

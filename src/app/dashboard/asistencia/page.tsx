@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import WidgetGPS from './widget-gps';
-import { CalendarX2, Navigation } from 'lucide-react';
+import { CalendarX2 } from 'lucide-react';
 
 export default async function AsistenciaPage() {
   const supabase = await createClient();
@@ -27,49 +27,70 @@ export default async function AsistenciaPage() {
       .eq('jornada_id', jornadaActiva.id)
       .eq('usuario_id', user.id)
       .maybeSingle();
-      
+
     yaAsistio = !!asistencia;
   }
 
-  const COORD_OBJETIVO = { lat: -12.073156, lng: -76.9522};
+  // Coordenadas oficiales de la sede
+  const COORD_OBJETIVO = { lat: -12.073156, lng: -76.9522 };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-8 py-6 space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 space-y-8 animate-in fade-in duration-300">
       
-      {/* Header del Módulo */}
+      {/* 1. Header con el mismo tono que Jornadas */}
       <div>
-        <h1 className="text-lg font-bold tracking-tight text-[#211B20]">
-          Validación de Asistencia
+        <h1 className="text-2xl font-bold tracking-tight text-[#1F1A17]">
+          Asistencia
         </h1>
-        <p className="text-xs text-slate-500 font-medium mt-0.5">
-          Registro presencial de operaciones mediante geolocalización (GPS)
+        <p className="text-[13px] text-[#667085] mt-1">
+          Registro presencial para la jornada activa.
         </p>
       </div>
 
-      {!jornadaActiva ? (
-        // Empty State Accesible
-        <div className="bg-white border border-slate-200/80 rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.02)] p-10 text-center flex flex-col items-center justify-center space-y-3" role="status" aria-live="polite">
-          <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center mb-2" aria-hidden="true">
-            <CalendarX2 className="w-6 h-6 text-slate-400" />
+      {/* 2. Tarjeta Central */}
+      <div className="flex justify-center pt-2">
+        {!jornadaActiva ? (
+          <div
+            className="w-full max-w-lg bg-white rounded-3xl p-10 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-slate-100 text-center space-y-3"
+            role="status"
+            aria-live="polite"
+          >
+            <div
+              className="w-12 h-12 rounded-2xl bg-[#FAFAF7] text-slate-300 flex items-center justify-center mx-auto border border-slate-200/60"
+              aria-hidden="true"
+            >
+              <CalendarX2 className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-[#1F1A17]">
+              No hay jornadas activas
+            </h2>
+            <p className="text-xs text-[#667085] max-w-xs mx-auto leading-relaxed">
+              Actualmente no existe ninguna jornada en curso o programada. El coordinador debe habilitar una fecha para activar el registro.
+            </p>
           </div>
-          <h2 className="text-sm font-bold text-[#211B20]">No hay jornadas activas</h2>
-          <p className="text-xs text-slate-500 max-w-sm">
-            Actualmente no existe ninguna jornada en curso o programada. El coordinador debe activar una fecha para habilitar el registro de asistencia.
-          </p>
-        </div>
-      ) : (
-        // Widget de Control Geográfico
-        <section aria-labelledby="titulo-widget">
-          <h2 id="titulo-widget" className="sr-only">Widget de Geolocalización</h2>
-          <WidgetGPS 
-            jornadaId={jornadaActiva.id} 
-            fechaJornada={jornadaActiva.fecha}
-            usuarioId={user.id} 
-            yaAsistio={yaAsistio} 
-            coordObjetivo={COORD_OBJETIVO} 
-          />
-        </section>
-      )}
+        ) : (
+          <section aria-labelledby="titulo-widget" className="w-full flex justify-center">
+            <h2 id="titulo-widget" className="sr-only">Widget de Geolocalización</h2>
+            <WidgetGPS
+              jornadaId={jornadaActiva.id}
+              fechaJornada={jornadaActiva.fecha}
+              usuarioId={user.id}
+              yaAsistio={yaAsistio}
+              coordObjetivo={COORD_OBJETIVO}
+            />
+          </section>
+        )}
+      </div>
+
+      {/* 3. Frase manuscrita al pie */}
+      <div className="text-center pt-8 flex flex-col">
+        <span className="font-[family-name:var(--font-handwritten)] text-[18px] text-stone-400 select-none">
+          “Donde están dos o tres reunidos en mi nombre, ahí estaré.”
+        </span>
+        <span className="font-[family-name:var(--font-handwritten)] text-[18px] text-stone-400 select-none">
+          Mateo 18:20
+        </span>
+      </div>
     </div>
   );
 }

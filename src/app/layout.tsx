@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Caveat } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,9 +14,16 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+const caveat = Caveat({
+  subsets: ["latin"],
+  variable: "--font-handwritten",
+  weight: ["400", "600"],
+  display: "swap",
+});
+
 // Configuración de vista y comportamiento móvil / PWA
 export const viewport: Viewport = {
-  themeColor: "#07833F",
+  themeColor: "#0B8A43",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -61,9 +68,9 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#F4F3EF] text-[#211B20]">
+      <body className="min-h-full flex flex-col bg-[#FAFAF7] text-[#1F1A17]">
         {children}
       </body>
     </html>

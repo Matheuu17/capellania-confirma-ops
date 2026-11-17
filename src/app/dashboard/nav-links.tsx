@@ -2,36 +2,42 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Layers, MapPin, UserCircle } from 'lucide-react'; // <-- Importamos UserCircle
+import { Layers, MapPin, UserCircle, SlidersHorizontal } from 'lucide-react';
 
-export default function NavLinks() {
+interface NavLinksProps {
+  esCoordinador?: boolean;
+}
+
+export default function NavLinks({ esCoordinador = false }: NavLinksProps) {
   const pathname = usePathname();
 
   const links = [
     { name: 'Jornadas', href: '/dashboard', icon: Layers },
-    { name: 'Asistencia GPS', href: '/dashboard/asistencia', icon: MapPin },
-    { name: 'Mi Perfil', href: '/dashboard/perfil', icon: UserCircle }, // <-- Nuevo enlace
+    { name: 'Asistencia', href: '/dashboard/asistencia', icon: MapPin },
+    ...(esCoordinador
+      ? [{ name: 'Equipo', href: '/dashboard/control', icon: SlidersHorizontal }]
+      : []),
+    { name: 'Mi Perfil', href: '/dashboard/perfil', icon: UserCircle },
   ];
 
   return (
     <>
       {links.map((link) => {
-        const Icon = link.icon;
+        const LinkIcon = link.icon;
         const isActive = pathname === link.href;
 
         return (
           <Link
-            key={link.name}
+            key={link.href}
             href={link.href}
-            aria-current={isActive ? 'page' : undefined}
-            className={`flex flex-col sm:flex-row items-center sm:justify-start justify-center gap-1 sm:gap-3 sm:px-3 sm:py-2.5 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#07833F] ${
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold tracking-wider transition-all ${
               isActive
-                ? 'text-[#07833F] sm:bg-[#07833F]/10 font-bold'
-                : 'text-slate-500 hover:text-[#211B20] hover:bg-slate-100 font-medium'
+                ? 'bg-[#07833F] text-white shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-[#211B20]'
             }`}
           >
-            <Icon className={`w-5 h-5 sm:w-4 sm:h-4 ${isActive ? 'stroke-[2.5]' : ''}`} aria-hidden="true" />
-            <span className="text-[10px] sm:text-xs tracking-wide">{link.name}</span>
+            <LinkIcon className="w-4 h-4 shrink-0" />
+            <span>{link.name}</span>
           </Link>
         );
       })}

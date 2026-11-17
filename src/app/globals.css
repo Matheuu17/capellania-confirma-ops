@@ -10,6 +10,7 @@
   --color-brand-gold: #E0B84F;
   --color-brand-dark: #211B20;
   --color-brand-bg: #F4F3EF;
+  --font-handwritten: var(--font-handwritten);
 }
 
 body {

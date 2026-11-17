@@ -1,233 +1,489 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { crearJornada } from './actions';
-import { Plus, ChevronRight, Layers, CalendarDays } from 'lucide-react';
+import {
+  Plus,
+  Package,
+  ChevronRight,
+  ArrowRight,
+  Bell,
+  Leaf,
+  Calendar,
+} from 'lucide-react';
 
-export default async function DashboardPage() {
+interface Props {
+  searchParams: Promise<{ estado?: string }>;
+}
+
+export default async function DashboardPage({ searchParams }: Props) {
+  const { estado: filtroEstado = 'activas' } = await searchParams;
   const supabase = await createClient();
 
-  // El layout ya protege la ruta, pero lo requerimos para extraer el rol del usuario
+  // 1. Autenticación y perfil
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
   const { data: perfil } = await supabase
     .from('perfiles')
-    .select('rol')
+    .select('nombre, rol')
     .eq('id', user.id)
     .single();
 
   const esCoordinador = perfil?.rol === 'coordinador';
+  const nombreUsuario = perfil?.nombre?.split(' ')[0] || 'Matías';
 
-  // Obtener jornadas con sus tareas (cajas) anidadas
-  const { data: jornadas } = await supabase
+  // 2. Consulta de jornadas
+  const { data: jornadasRaw } = await supabase
     .from('jornadas')
     .select(`
       *,
-      tareas_jornada ( id, tipo_caja, estado )
+      tareas_jornada ( id, tipo_caja, estado, asignados_a, materiales_verificados )
     `)
     .order('fecha', { ascending: false });
 
+  const todasLasJornadas = jornadasRaw || [];
+
+  // 3. Helper para parsear fechas sin desfase de zona horaria (UTC)
+  const parsearFechaLocal = (fechaStr: string) => {
+    const [year, month, day] = fechaStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const fechaHoy = new Date();
+  fechaHoy.setHours(0, 0, 0, 0);
+  const fechaHoyStr = fechaHoy.toISOString().split('T')[0];
+
+  // Identificar la próxima jornada
+  const proximasJornadas = [...todasLasJornadas]
+    .filter((j) => j.estado !== 'cancelada' && j.estado !== 'finalizada' && j.fecha >= fechaHoyStr)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  const proximaJornada = proximasJornadas[0] || null;
+
+  // Días restantes exactos
+  let diasRestantes = 0;
+  if (proximaJornada) {
+    const fechaObj = parsearFechaLocal(proximaJornada.fecha);
+    const diffMs = fechaObj.getTime() - fechaHoy.getTime();
+    diasRestantes = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  // Alertas operativas
+  const jornadasSinPonente = todasLasJornadas.filter(
+    (j) => j.estado !== 'cancelada' && (!j.ponente || j.ponente.toLowerCase().includes('confirmar') || j.ponente.trim().length <= 2)
+  ).length;
+
+  let totalCajasPendientes = 0;
+  let totalJornadasListas = 0;
+
+  todasLasJornadas.forEach((j) => {
+    if (j.estado === 'cancelada') return;
+    const tareas = j.tareas_jornada || [];
+    const completadas = tareas.filter((t: any) => t.estado === 'completado').length;
+    totalCajasPendientes += tareas.length - completadas;
+    if (tareas.length > 0 && completadas === tareas.length) totalJornadasListas++;
+  });
+
+  // 4. Filtrado en memoria para la tabla
+  const jornadasFiltradas = todasLasJornadas.filter((j) => {
+    if (filtroEstado === 'canceladas') return j.estado === 'cancelada';
+    if (filtroEstado === 'finalizadas') return j.estado === 'finalizada';
+    if (filtroEstado === 'planificacion') return j.estado === 'planificacion';
+    if (filtroEstado === 'en_curso') return j.estado === 'en_curso';
+    return j.estado !== 'cancelada';
+  });
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6">
       
-      {/* 1. Cabecera del Módulo y Acciones */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 1. Header con Saludo y Botón */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold tracking-tight text-[#211B20]">
-            Registro de Operaciones
+          <h1 className="text-2xl font-bold tracking-tight text-[#1F1A17]">
+            Jornadas
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Control de preparación de cajas e inventario por fecha operativa.
+          <p className="text-[13px] text-[#667085] mt-0.5">
+            Coordinación de recursos, materiales y acompañamiento pastoral.
           </p>
         </div>
 
-        {esCoordinador && (
-          <details className="group relative z-30">
-            <summary 
-              className="list-none inline-flex items-center gap-2 px-4 py-2.5 bg-[#07833F] hover:bg-[#066e35] active:bg-[#055b2c] text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-2xs cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#07833F] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F4F3EF]"
-              aria-haspopup="dialog"
-              aria-label="Desplegar formulario para nueva jornada"
-            >
-              <Plus className="w-4 h-4 transition-transform duration-200 group-open:rotate-45" aria-hidden="true" />
-              <span>Nueva Jornada</span>
-            </summary>
-
-            {/* Formulario Flotante de Creación Rápida */}
-            <div 
-              role="dialog" 
-              aria-label="Programar nueva jornada operativa"
-              className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200/90 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] p-5 origin-top-right animate-in zoom-in-95 duration-200"
-            >
-              <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-4 border-b border-slate-100 pb-2">
-                Programar Nueva Jornada
-              </h2>
-              <form action={crearJornada} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="fecha" className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Fecha Operativa
-                  </label>
-                  <input
-                    id="fecha"
-                    name="fecha"
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 bg-slate-50/60 border border-slate-200 rounded-lg text-sm text-[#211B20] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#07833F]/20 focus:border-[#07833F] transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="ponente" className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Ponente / Charlista
-                  </label>
-                  <input
-                    id="ponente"
-                    name="ponente"
-                    type="text"
-                    required
-                    placeholder="Ej. Padre Juan"
-                    className="w-full px-3 py-2 bg-slate-50/60 border border-slate-200 rounded-lg text-sm text-[#211B20] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#07833F]/20 focus:border-[#07833F] transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="dinamica" className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Dinámica de Apertura
-                  </label>
-                  <input
-                    id="dinamica"
-                    name="dinamica"
-                    type="text"
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 bg-slate-50/60 border border-slate-200 rounded-lg text-sm text-[#211B20] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#07833F]/20 focus:border-[#07833F] transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 bg-[#211B20] hover:bg-black active:bg-slate-800 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors shadow-2xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#07833F] focus-visible:ring-offset-1"
-                  >
-                    Generar Jornada y Cajas
-                  </button>
-                </div>
-              </form>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-6">
+            <div className="hidden sm:flex items-center gap-2 text-right">
+              <Leaf className="w-4 h-4 text-[#0B8A43]" />
+              <div className="flex flex-col leading-tight">
+                <span className="text-xs font-bold text-[#1F1A17]">¡Buenos días, {nombreUsuario}!</span>
+                <span className="text-[11px] text-[#667085]">Seguimos sirviendo</span>
+              </div>
             </div>
-          </details>
+
+            {esCoordinador && (
+              <details className="group relative z-30">
+                <summary className="list-none inline-flex items-center gap-2 px-4 py-2 bg-[#0B8A43] hover:bg-[#097337] text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer shadow-xs select-none">
+                  <Plus className="w-4 h-4 transition-transform duration-200 group-open:rotate-45" />
+                  <span>Nueva Jornada</span>
+                </summary>
+
+                {/* Formulario Flotante */}
+                <div className="absolute right-0 mt-2 w-84 sm:w-96 bg-white border border-slate-200 rounded-xl shadow-2xl p-5 origin-top-right animate-in zoom-in-95 duration-150">
+                  <h2 className="text-xs font-bold text-[#1F1A17] mb-3 pb-2 border-b border-slate-100 uppercase tracking-wider">
+                    Programar Nueva Jornada
+                  </h2>
+                  <form action={crearJornada} className="space-y-3.5">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-[#667085]">Fecha Operativa</label>
+                      <input name="fecha" type="date" required className="w-full px-3 py-1.5 bg-[#FAFAF7] border border-slate-200 rounded-lg text-xs text-[#1F1A17] focus:ring-2 focus:ring-[#0B8A43]/20 focus:border-[#0B8A43] outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-[#667085]">Ponente / Charlista</label>
+                      <input name="ponente" type="text" required placeholder="Ej. Padre Juan / Por confirmar" className="w-full px-3 py-1.5 bg-[#FAFAF7] border border-slate-200 rounded-lg text-xs text-[#1F1A17] focus:ring-2 focus:ring-[#0B8A43]/20 focus:border-[#0B8A43] outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-[#667085]">Dinámica de Apertura</label>
+                      <input name="dinamica" type="text" placeholder="Opcional" className="w-full px-3 py-1.5 bg-[#FAFAF7] border border-slate-200 rounded-lg text-xs text-[#1F1A17] focus:ring-2 focus:ring-[#0B8A43]/20 focus:border-[#0B8A43] outline-none" />
+                    </div>
+                    <div className="space-y-1 pt-1">
+                      <label className="block text-xs font-semibold text-[#667085]">Cajas Requeridas</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'interna', label: 'Interna' },
+                          { id: 'externa', label: 'Externa' },
+                          { id: 'agape', label: 'Ágape' },
+                        ].map((caja) => (
+                          <label key={caja.id} className="flex items-center gap-1.5 p-2 bg-[#FAFAF7] border border-slate-200 rounded-lg text-xs font-semibold text-[#1F1A17] cursor-pointer has-checked:bg-[#DDF4E4]/40 has-checked:border-[#0B8A43]/40">
+                            <input type="checkbox" name="cajas" value={caja.id} defaultChecked className="rounded border-slate-300 text-[#0B8A43] focus:ring-[#0B8A43]" />
+                            <span>{caja.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <button type="submit" className="w-full py-2 bg-[#0B8A43] hover:bg-[#097337] text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors shadow-xs cursor-pointer mt-2">
+                      Guardar Jornada
+                    </button>
+                  </form>
+                </div>
+              </details>
+            )}
+          </div>
+          
+          {/* Frase manuscrita con trazo orgánico bajo el botón */}
+            <div className="relative inline-block mt-0.5 select-none self-end sm:self-auto">
+              <span className="font-[family-name:var(--font-handwritten)] text-[17px] text-stone-500/80 tracking-wide font-medium leading-none">
+                “La fe también se organiza”
+              </span>
+
+              {/* Trazo orgánico curvado dibujado a mano */}
+              <svg
+                viewBox="0 0 200 12"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute left-0 -bottom-1 w-full h-2 text-stone-400/50 pointer-events-none"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M 2 8 C 50 2, 130 3, 196 9"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+        </div>
+      </div>
+
+      {/* 3. Tarjetas Superiores */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Próxima Jornada */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-slate-100 flex flex-col justify-between">
+          {proximaJornada ? (
+            (() => {
+              const tareas = proximaJornada.tareas_jornada || [];
+              const completadas = tareas.filter((t: any) => t.estado === 'completado').length;
+              const porcentaje = tareas.length > 0 ? Math.round((completadas / tareas.length) * 100) : 0;
+              const fechaLocal = parsearFechaLocal(proximaJornada.fecha);
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-5">
+                      {/* Ticket de Fecha */}
+                      <div className="w-14 h-14 rounded-xl bg-[#1F1A17] text-white flex flex-col items-center justify-center shrink-0">
+                        <span className="text-[9px] font-bold uppercase text-[#0B8A43] tracking-wider mb-0.5">
+                          {fechaLocal.toLocaleDateString('es-PE', { month: 'short' }).replace('.', '')}
+                        </span>
+                        <span className="text-xl font-bold leading-none">
+                          {fechaLocal.getDate()}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col space-y-1">
+                        <div>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#DDF4E4] text-[#0B8A43]">
+                            Próxima jornada
+                          </span>
+                        </div>
+                        {/* "5 días" resaltado en verde */}
+                        <h2 className="text-[19px] font-medium text-[#1F1A17] tracking-tight">
+                          <span className="font-bold text-[#0B8A43]">{diasRestantes} días</span> para la próxima jornada
+                        </h2>
+                        <div className="pt-1">
+                          <p className="text-[13px] text-[#1F1A17] font-semibold">Ponente: {proximaJornada.ponente}</p>
+                          <p className="text-[12px] text-[#667085]">Dinámica: {proximaJornada.dinamica_apertura || 'Por confirmar'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/jornada/${proximaJornada.id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B8A43] hover:bg-[#097337] text-white text-[13px] font-medium rounded-lg transition-colors shrink-0 shadow-xs"
+                    >
+                      <span>Abrir Jornada</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+
+                  <div className="mt-8 pt-5 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-[13px] mb-2">
+                      <span className="flex items-center gap-1.5 text-[#1F1A17] font-medium">
+                        <Package className="w-4 h-4 text-[#667085]" />
+                        Preparación de Cajas: {completadas} de {tareas.length} listas
+                      </span>
+                      <span className="font-bold text-[#1F1A17]">{porcentaje}%</span>
+                    </div>
+                    
+                    <div className="w-full bg-[#F4F3EF] h-2 rounded-full overflow-hidden mb-2">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          porcentaje === 100 ? 'bg-[#0B8A43]' : porcentaje > 0 ? 'bg-[#D9A321]' : 'bg-transparent'
+                        }`}
+                        style={{ width: `${porcentaje}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${porcentaje === 100 ? 'bg-[#0B8A43]' : 'bg-[#D9A321]'}`} />
+                      <span className="text-[12px] text-[#667085] font-medium">
+                        {porcentaje === 100 ? 'Cajas 100% listas' : 'Preparación en progreso'}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              );
+            })()
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center py-6">
+              <Calendar className="w-8 h-8 text-slate-300 mb-2" />
+              <p className="text-sm font-semibold text-[#1F1A17]">No hay jornadas próximas agendadas</p>
+            </div>
+          )}
+        </div>
+
+        {/* Alertas Operativas */}
+        <div className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-slate-100 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Bell className="w-5 h-5 text-[#D9A321]" />
+              <h3 className="text-[15px] font-bold text-[#1F1A17]">Alertas operativas</h3>
+            </div>
+
+            <div className="space-y-5 text-[13px]">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-3 text-[#667085]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#D9A321]" />
+                  Sin ponente confirmado
+                </span>
+                <span className="font-bold text-[#1F1A17]">{jornadasSinPonente}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-3 text-[#667085]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
+                  Cajas pendientes de check
+                </span>
+                <span className={`font-bold ${totalCajasPendientes > 0 ? 'text-rose-600' : 'text-[#1F1A17]'}`}>
+                  {totalCajasPendientes}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-3 text-[#667085]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0B8A43]" />
+                  Jornadas 100% listas
+                </span>
+                <span className="font-bold text-[#1F1A17]">{totalJornadasListas}</span>
+              </div>
+            </div>
+          </div>
+
+          <div />
+        </div>
+      </div>
+
+      {/* 4. Filtros en Pastillas */}
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        {[
+          { id: 'activas', label: 'Activas' },
+          { id: 'planificacion', label: 'Planificación' },
+          { id: 'en_curso', label: 'En curso' },
+          { id: 'finalizadas', label: 'Finalizadas' },
+          { id: 'canceladas', label: 'Canceladas / Archivo' },
+        ].map((item) => {
+          const isSelected = filtroEstado === item.id;
+          return (
+            <Link
+              key={item.id}
+              href={`/dashboard?estado=${item.id}`}
+              className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-all ${
+                isSelected
+                  ? 'bg-[#0B8A43] text-white shadow-xs'
+                  : 'bg-white text-[#667085] hover:bg-slate-50 border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)]'
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* 5. Tabla de Jornadas con Indicador Lateral */}
+      <div className="bg-white rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
+        <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-100 text-[11px] font-bold text-[#667085] uppercase tracking-wider">
+          <div className="col-span-3">Fecha</div>
+          <div className="col-span-4">Ponente y dinámica</div>
+          <div className="col-span-2">Estado</div>
+          <div className="col-span-3">Preparación de cajas</div>
+        </div>
+
+        {jornadasFiltradas.length > 0 ? (
+          <div className="flex flex-col">
+            {jornadasFiltradas.map((j) => {
+              const tareas = j.tareas_jornada || [];
+              const completadas = tareas.filter((t: any) => t.estado === 'completado').length;
+              const total = tareas.length;
+              const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
+              const fechaLocal = parsearFechaLocal(j.fecha);
+              const isNext = proximaJornada?.id === j.id;
+
+              return (
+                <Link
+                  key={j.id}
+                  href={`/jornada/${j.id}`}
+                  className={`grid grid-cols-1 md:grid-cols-12 gap-4 items-center px-6 py-4 hover:bg-slate-50/60 transition-colors group border-l-4 ${
+                    isNext ? 'border-[#0B8A43]' : 'border-transparent'
+                  } border-b border-slate-100 last:border-b-0`}
+                >
+                  {/* Fecha */}
+                  <div className="col-span-3 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-[#1F1A17] text-white flex flex-col items-center justify-center shrink-0">
+                      <span className="text-[9px] font-bold uppercase text-[#0B8A43] tracking-widest leading-none mb-0.5">
+                        {fechaLocal.toLocaleDateString('es-PE', { month: 'short' }).replace('.', '')}
+                      </span>
+                      <span className="text-base font-bold leading-none">
+                        {fechaLocal.getDate()}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-[#1F1A17] group-hover:text-[#0B8A43] transition-colors">
+                        {j.fecha}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Ponente */}
+                  <div className="col-span-4 min-w-0 flex flex-col justify-center">
+                    <span className="text-[13px] font-bold text-[#1F1A17] truncate">
+                      {j.ponente || 'Por confirmar'}
+                    </span>
+                    <span className="text-[12px] text-[#667085] truncate">
+                      {j.dinamica_apertura || 'Por confirmar'}
+                    </span>
+                  </div>
+
+                  {/* Estado */}
+                  <div className="col-span-2 flex items-center">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium ${
+                        j.estado === 'planificacion'
+                          ? 'bg-[#FFF4D6] text-[#D9A321]'
+                          : j.estado === 'en_curso'
+                          ? 'bg-[#DDF4E4] text-[#0B8A43]'
+                          : j.estado === 'cancelada'
+                          ? 'bg-rose-50 text-rose-700'
+                          : 'bg-[#F4F3EF] text-[#667085]'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          j.estado === 'planificacion' ? 'bg-[#D9A321]' : j.estado === 'en_curso' ? 'bg-[#0B8A43]' : j.estado === 'cancelada' ? 'bg-rose-500' : 'bg-[#667085]'
+                        }`}
+                      />
+                      {j.estado.charAt(0).toUpperCase() + j.estado.slice(1).replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  {/* Preparación de Cajas */}
+                  <div className="col-span-3 flex items-center justify-between">
+                    <div className="w-full max-w-[140px]">
+                      <div className="flex justify-between items-center text-[11px] font-semibold mb-1">
+                        <span className="text-[#667085]">{completadas}/{total} cajas</span>
+                        <span className={`font-bold ${porcentaje === 100 ? 'text-[#0B8A43]' : 'text-[#1F1A17]'}`}>
+                          {porcentaje}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-[#F4F3EF] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            porcentaje === 100 ? 'bg-[#0B8A43]' : porcentaje > 0 ? 'bg-[#D9A321]' : 'bg-transparent'
+                          }`}
+                          style={{ width: `${porcentaje}%` }}
+                        />
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0B8A43] transition-colors ml-4" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-16 text-center space-y-2">
+            <Calendar className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-[#1F1A17]">No se encontraron jornadas</p>
+          </div>
         )}
       </div>
 
-      {/* 2. Contenedor del Data Grid (Estilo SaaS) */}
-      <div className="bg-white border border-slate-200/80 rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-        
-        {/* Cabecera de Tabla (Oculta en móviles, visible en Desktop) */}
-        <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3.5 bg-slate-50/80 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500" aria-hidden="true">
-          <div className="col-span-3">Fecha y Ticket</div>
-          <div className="col-span-4">Ponente y Dinámica</div>
-          <div className="col-span-2">Fase de Jornada</div>
-          <div className="col-span-2 text-center">Estado de Cajas</div>
-          <div className="col-span-1 text-right">Acción</div>
+     {/* 6. Footer con Frase Institucional */}
+      <div className="flex items-center justify-between pt-8 pb-4 text-xs text-[#667085]">
+        {/* Frase manuscrita con trazo orgánico */}
+        <div className="relative inline-block select-none">
+          <span className="font-[family-name:var(--font-handwritten)] text-[20px] text-stone-500/80 tracking-wide font-medium leading-none">
+            “Personas, encuentros, esperanza”
+          </span>
+
+          {/* Trazo ondulado a mano alzada */}
+          <svg
+            viewBox="0 0 240 12"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="absolute left-0 -bottom-1.5 w-full h-2 text-stone-400/50 pointer-events-none"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M 2 8 C 65 3, 160 4, 236 9"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
 
-        {/* Cuerpo de la Tabla */}
-        {jornadas && jornadas.length > 0 ? (
-          <div className="divide-y divide-slate-100" role="list" aria-label="Lista de jornadas operativas">
-            {jornadas.map((j) => (
-              <div 
-                key={j.id} 
-                role="listitem" 
-                className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-4 items-center px-5 sm:px-6 py-4 hover:bg-slate-50/50 transition-colors group"
-              >
-                {/* Columna: Fecha y Ticket */}
-                <div className="col-span-3 flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-lg bg-slate-100/80 border border-slate-200/70 flex flex-col items-center justify-center shrink-0 shadow-2xs" aria-hidden="true">
-                    <span className="text-[9px] uppercase font-bold text-slate-500 leading-none mb-0.5">
-                      {new Date(j.fecha).toLocaleDateString('es-PE', { month: 'short' })}
-                    </span>
-                    <span className="text-sm font-bold text-[#211B20] leading-none">
-                      {new Date(j.fecha).getUTCDate()}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#211B20]">{j.fecha}</span>
-                    <span className="text-[10px] text-slate-400 font-mono mt-0.5" aria-label={`ID de ticket: ${j.id.slice(0, 8)}`}>
-                      #{j.id.slice(0, 8)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Columna: Ponente */}
-                <div className="col-span-4 flex flex-col justify-center">
-                  <span className="text-xs font-bold text-[#211B20] truncate">{j.ponente}</span>
-                  <span className={`text-[11px] truncate mt-0.5 ${j.dinamica_apertura ? 'text-slate-500' : 'text-slate-400 italic font-medium'}`}>
-                    {j.dinamica_apertura || 'Sin dinámica asignada'}
-                  </span>
-                </div>
-
-                {/* Columna: Estado General */}
-                <div className="col-span-2 flex items-center">
-                  <span 
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest border ${
-                      j.estado === 'en_curso' ? 'bg-[#07833F]/10 text-[#07833F] border-[#07833F]/20' : 
-                      j.estado === 'planificacion' ? 'bg-[#E0B84F]/10 text-[#9a761e] border-[#E0B84F]/20' : 
-                      'bg-slate-100 text-slate-500 border-slate-200/80'
-                    }`}
-                    aria-label={`Estado actual: ${j.estado.replace('_', ' ')}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${j.estado === 'en_curso' ? 'bg-[#07833F]' : j.estado === 'planificacion' ? 'bg-[#E0B84F]' : 'bg-slate-400'}`} aria-hidden="true" />
-                    {j.estado.replace('_', ' ')}
-                  </span>
-                </div>
-
-                {/* Columna: Etiquetas de Cajas */}
-                <div 
-                  className="col-span-2 flex items-center justify-start md:justify-center gap-1.5 flex-wrap" 
-                  aria-label={`${j.tareas_jornada?.length || 0} cajas vinculadas`}
-                >
-                  {j.tareas_jornada?.map((tarea: any) => (
-                    <span 
-                      key={tarea.id} 
-                      title={`Caja ${tarea.tipo_caja}: ${tarea.estado}`} 
-                      className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border transition-colors ${
-                        tarea.estado === 'completado' ? 'bg-[#07833F]/10 border-[#07833F]/25 text-[#07833F]' : 
-                        tarea.estado === 'en_progreso' ? 'bg-[#E0B84F]/15 border-[#E0B84F]/30 text-[#9a761e]' : 
-                        'bg-slate-100/70 border-slate-200 text-slate-500'
-                      }`}
-                    >
-                      {tarea.tipo_caja.slice(0, 3)}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Columna: Acción (Enlace Accesible) */}
-                <div className="col-span-1 flex md:justify-end mt-2 md:mt-0">
-                  <Link
-                    href={`/jornada/${j.id}`}
-                    aria-label={`Gestionar logística de la jornada del ${j.fecha}`}
-                    className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg border border-slate-200/90 bg-white hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#07833F] text-[11px] font-bold uppercase tracking-wider text-[#211B20] transition-all shadow-2xs group-hover:border-[#07833F]/30"
-                  >
-                    <span>Abrir</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#07833F] transition-colors" aria-hidden="true" />
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Empty State Accesible */
-          <div className="p-16 text-center space-y-4" role="status" aria-live="polite">
-            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center mx-auto shadow-2xs" aria-hidden="true">
-              <CalendarDays className="w-6 h-6 text-slate-400" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-[#211B20]">No hay jornadas programadas</p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                {esCoordinador 
-                  ? 'Utiliza el botón "Nueva Jornada" en la parte superior para inicializar el cronograma y estructurar las cajas.' 
-                  : 'Aún no se han programado eventos operativos para el equipo. Revisa más tarde.'}
-              </p>
-            </div>
-          </div>
-        )}
+        <span className="text-slate-400 text-xs select-none">
+          Capellanía Ops · Confirma
+        </span>
       </div>
     </div>
   );

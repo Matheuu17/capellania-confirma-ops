@@ -38,7 +38,7 @@ export async function registrarAsistenciaGPS(jornadaId: string, distancia: numbe
   const { error } = await supabase.from('asistencias').insert({
     jornada_id: jornadaId,
     usuario_id: user.id,
-    distancia_metros: distancia,
+    distancia_metros: Math.round(distancia),
     registrado_en: ahora.toISOString(),
   });
 
@@ -55,7 +55,9 @@ export async function registrarAsistenciaGPS(jornadaId: string, distancia: numbe
     }).catch((err) => console.error('Error sincronizando Sheet:', err));
   }
 
+  // Revalidar todas las pantallas dependientes
   revalidatePath('/dashboard/asistencia');
+  revalidatePath('/dashboard/control');
   revalidatePath(`/jornada/${jornadaId}`);
 
   return { success: true };
