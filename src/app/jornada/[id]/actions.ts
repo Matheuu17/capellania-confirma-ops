@@ -10,14 +10,19 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function actualizarDatosJornada(formData: FormData) {
   const supabase = await createClient();
+
   const jornadaId = formData.get('jornadaId') as string;
   const fecha = formData.get('fecha') as string;
   const ponente = (formData.get('ponente') as string)?.trim();
   const dinamica = (formData.get('dinamica') as string)?.trim() || null;
 
-  if (!jornadaId || !fecha || !ponente) return;
+  // Leer las cajas seleccionadas en los checkboxes
+  const cajasSeleccionadas = formData.getAll('cajas') as string[];
 
-  await supabase
+  if (!jornadaId) return;
+
+  // 1. Actualizar datos principales de la jornada
+  const { error: errJornada } = await supabase
     .from('jornadas')
     .update({
       fecha,
@@ -26,7 +31,43 @@ export async function actualizarDatosJornada(formData: FormData) {
     })
     .eq('id', jornadaId);
 
+  if (errJornada) {
+    throw new Error(`Error al actualizar jornada: ${errJornada.message}`);
+  }
+
+  // 2. Sincronizar las cajas activas de esta jornada
+  const { data: tareasActuales } = await supabase
+    .from('tareas_jornada')
+    .select('id, tipo_caja')
+    .eq('jornada_id', jornadaId);
+
+  const existentes = tareasActuales || [];
+  const tiposActuales = new Set(existentes.map((t) => t.tipo_caja));
+
+  // A) Cajas que el usuario desmarcó -> Eliminarlas
+  const aEliminar = existentes.filter((t) => !cajasSeleccionadas.includes(t.tipo_caja));
+  if (aEliminar.length > 0) {
+    await supabase
+      .from('tareas_jornada')
+      .delete()
+      .in('id', aEliminar.map((t) => t.id));
+  }
+
+  // B) Cajas nuevas que el usuario marcó -> Insertarlas
+  const aCrear = cajasSeleccionadas.filter((tipo) => !tiposActuales.has(tipo));
+  if (aCrear.length > 0) {
+    const nuevasTareas = aCrear.map((tipo) => ({
+      jornada_id: jornadaId,
+      tipo_caja: tipo,
+      estado: 'pendiente',
+      materiales_verificados: [],
+      asignados_a: [],
+    }));
+    await supabase.from('tareas_jornada').insert(nuevasTareas);
+  }
+
   revalidatePath(`/jornada/${jornadaId}`);
+  revalidatePath('/dashboard');
 }
 
 export async function cambiarEstadoJornada(

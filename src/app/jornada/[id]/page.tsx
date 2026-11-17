@@ -345,7 +345,7 @@ export default async function JornadaDetailPage({ params }: Props) {
 
                   <form action={actualizarDatosJornada} className="space-y-3.5">
                     <input type="hidden" name="jornadaId" value={jornada.id} />
-                    
+
                     <div className="space-y-1">
                       <label className="block text-xs font-semibold text-[#667085]">Fecha Operativa</label>
                       <input
@@ -378,10 +378,41 @@ export default async function JornadaDetailPage({ params }: Props) {
                       />
                     </div>
 
+                    {/* Selector de Cajas Activas */}
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-xs font-semibold text-[#667085]">
+                        Cajas habilitadas en esta jornada
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            { id: 'interna', label: 'Interna' },
+                            { id: 'externa', label: 'Externa' },
+                            { id: 'agape', label: 'Ágape' },
+                          ] as const
+                        ).map((caja) => (
+                          <label
+                            key={caja.id}
+                            className="flex items-center gap-2 p-2 rounded-lg border border-slate-200/80 bg-[#FAFAF7] hover:bg-slate-100/70 text-xs font-medium text-[#1F1A17] cursor-pointer select-none transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              name="cajas"
+                              value={caja.id}
+                              defaultChecked={tiposExistentes.has(caja.id)}
+                              className="w-3.5 h-3.5 rounded border-slate-300 text-[#0B8A43] focus:ring-[#0B8A43] cursor-pointer"
+                            />
+                            <span>{caja.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                       <button
                         type="submit"
                         formAction={eliminarJornada}
+                        formNoValidate
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
