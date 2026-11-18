@@ -230,7 +230,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                         </h2>
                         <div className="pt-1">
                           <p className="text-[13px] text-[#1F1A17] font-semibold">Ponente: {proximaJornada.ponente}</p>
-                          <p className="text-[12px] text-[#667085]">Dinámica: {proximaJornada.dinamica_apertura || 'Por confirmar'}</p>
+                          <p className="text-[12px] text-[#667085]">{proximaJornada.dinamica_apertura || 'Por confirmar'}</p>
                         </div>
                       </div>
                     </div>
