@@ -17,7 +17,7 @@ export default function AsistenciaGPS({ jornadaId, usuarioId, yaAsistio, coordOb
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const RADIO_PERMITIDO = 50; // Metros
+  const RADIO_PERMITIDO = 60; // Metros
 
   const marcarAsistencia = () => {
     if (!navigator.geolocation) {
